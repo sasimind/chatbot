@@ -1,0 +1,707 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "Smart-MSU-Chatbot",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -496,
+        16
+      ],
+      "id": "d560cbaa-b73c-4089-a813-e157ca6aa752",
+      "name": "Webhook Trigger",
+      "webhookId": "44382b05-4d5f-468a-adb1-e5e05d4955c0"
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * Normalize Text1 (LINE + Student FAQ + Menu 1-3)\n * - ดึง replyToken, userId, ข้อความ\n * - normalize + lower\n * - ตรวจคำสั่ง /help\n * - map เลข 1-3 หรือ map คำ -> menu_choice 1-3\n */\n\nconst src = $json || {};\nconst body = src.body || src;\n\nconst destination = body.destination || \"\";\nconst events = Array.isArray(body.events) ? body.events : [];\nconst ev0 = events[0] || {};\n\nconst replyToken = ev0.replyToken || \"\";\nconst eventType = ev0.type || \"\";\nconst messageType = ev0.message?.type || \"\";\n\nconst userId =\n  ev0.source?.userId ||\n  ev0.source?.groupId ||\n  ev0.source?.roomId ||\n  \"\";\n\n// -------- ดึงข้อความผู้ใช้ --------\nlet user_text_raw = \"\";\nif (eventType === \"message\" && messageType === \"text\") {\n  user_text_raw = (ev0.message?.text ?? \"\").toString();\n}\n\n// -------- normalize ข้อความ --------\nconst normalize = (t) =>\n  (t || \"\")\n    .replace(/\\u200B/g, \"\")          // zero-width space\n    .replace(/[“”]/g, '\"')\n    .replace(/[‘’]/g, \"'\")\n    .replace(/\\s+/g, \" \")\n    .trim();\n\nconst user_text = normalize(user_text_raw);\nconst user_text_lower = user_text.toLowerCase();\n\n// -------- ตรวจคำสั่ง --------\nconst is_command = user_text_lower.startsWith(\"/\");\nconst command =\n  is_command ? user_text_lower.split(/\\s+/)[0].trim() : \"\";\n\n// -------- ตรวจเมนูตัวเลข 1-3 --------\nconst is_number = /^[1-3]$/.test(user_text);\nlet menu_choice = is_number ? user_text : \"\";\n\n// -------- map คำถาม -> menu_choice (1-3) --------\nif (!menu_choice) {\n  const t = user_text_lower;\n\n  // เมนู 1: พ้นสภาพนิสิต\n  if (\n    t.includes(\"พ้นสภาพ\") ||\n    t.includes(\"พ้นสภาพนิสิต\") ||\n    t.includes(\"รีไทน์\") ||\n    t.includes(\"retire\") ||\n    t.includes(\"หมดสภาพ\")\n  ) {\n    menu_choice = \"1\";\n  }\n\n  // เมนู 2: ลงทะเบียน / Gen Ed\n  else if (\n    t.includes(\"ลงทะเบียน\") ||\n    t.includes(\"ตารางเรียน\") ||\n    t.includes(\"เพิ่มถอน\") ||\n    t.includes(\"add/drop\") ||\n    t.includes(\"gen ed\") ||\n    t.includes(\"gened\") ||\n    t.includes(\"เจนเอด\") ||\n    t.includes(\"วิชาเสรี\") ||\n    t.includes(\"หน่วยกิต\") ||\n    t.includes(\"ลงเกิน\")\n  ) {\n    menu_choice = \"2\";\n  }\n\n  // เมนู 3: กยศ / ชั่วโมงจิตอาสา\n  else if (\n    t.includes(\"กยศ\") ||\n    t.includes(\"กยศ.\") ||\n    t.includes(\"กองทุนกู้ยืม\") ||\n    t.includes(\"กู้ยืม\") ||\n    t.includes(\"ชั่วโมงจิตอาสา\") ||\n    t.includes(\"จิตอาสา\") ||\n    t.includes(\"volunteer\")\n  ) {\n    menu_choice = \"3\";\n  }\n}\n\n// -------- output (สำคัญ: ห้ามลบ replyToken / userId) --------\nreturn [\n  {\n    json: {\n      destination,\n      replyToken,\n      userId,\n      eventType,\n      messageType,\n\n      user_text_raw,\n      user_text,\n      user_text_lower,\n\n      is_command,\n      command,\n\n      is_number,\n      menu_choice,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -272,
+        16
+      ],
+      "id": "560af9a8-157f-4ef4-b4a2-44b705a91fb4",
+      "name": "Normalize Text1"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.menu_choice }}",
+                    "rightValue": "1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "2547ade0-b6ef-4b75-8c68-e7c5d9f64296"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "04aebb85-5c5e-4a45-9083-21e60be85e96",
+                    "leftValue": "={{ $json.menu_choice }}",
+                    "rightValue": "2",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "c100d708-35e8-4a0f-a0a4-ac6ff5973e96",
+                    "leftValue": "={{ $json.menu_choice }}",
+                    "rightValue": "3",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        256,
+        -128
+      ],
+      "id": "2ddfcb99-1c60-44b9-82d0-cafc2ac7d437",
+      "name": "Switch: Menu Choice"
+    },
+    {
+      "parameters": {
+        "jsCode": "const replyToken = $json.events[0].replyToken;\n\nconst messages = [\n  {\n    type: \"text\",\n    text:\n      \"📘 พ้นสภาพนิสิต\\n\\n\" +\n      \"- เกิดจากไม่ลงทะเบียนตามกำหนด\\n\" +\n      \"- GPAX ต่ำกว่าเกณฑ์\\n\" +\n      \"- ขาดคุณสมบัติตามข้อบังคับ\\n\\n\" +\n      \"หากต้องการคืนสภาพ ติดต่อฝ่ายทะเบียนค่ะ 🤍\"\n  }\n];\n\nreturn [\n  {\n    json: {\n      replyToken: replyToken,\n      messages: messages\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        512,
+        -400
+      ],
+      "id": "d23d7352-c49e-470b-b383-6400d618e941",
+      "name": "Code-Message (พ้นสภาพนิสิต)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const replyToken = $json.replyToken;\n\nconst message = {\n  type: \"text\",\n  text:\n    \"📝 ลงทะเบียนเรียน / Gen Ed\\n\\n\" +\n    \"1) ตรวจสอบกำหนดการลงทะเบียนในปฏิทินการศึกษา\\n\" +\n    \"2) เข้าเมนูลงทะเบียนตามช่วงเวลาที่กำหนด\\n\" +\n    \"3) หากติดเงื่อนไข (หน่วยกิต/วิชาซ้ำ/ชนเวลา) ให้ปรึกษาอาจารย์ที่ปรึกษา\\n\" +\n    \"4) วิชา Gen Ed ตรวจสอบหมวดและหน่วยกิตให้ครบตามหลักสูตร\\n\\n\" +\n    \"ถ้าบอกคณะ/ชั้นปีได้ เค้าช่วยไล่เช็กให้เป็นข้อ ๆ ได้ค่ะ 🤍\"\n};\n\nreturn [{\n  json: { replyToken, message }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        512,
+        -224
+      ],
+      "id": "33a91c7f-23f2-439c-8ae2-f6bceb78ec90",
+      "name": "Code-Message (ลงทะเบียนเรียน / Gen Ed))"
+    },
+    {
+      "parameters": {
+        "jsCode": "const replyToken = $json.replyToken;\n\nconst message = {\n  type: \"text\",\n  text:\n    \"🎓 กยศ / ชั่วโมงจิตอาสา\\n\\n\" +\n    \"✅ กยศ:\\n\" +\n    \"- ตรวจสอบประกาศ/กำหนดการยื่นกู้ของมหาวิทยาลัย\\n\" +\n    \"- เตรียมเอกสารตามรายการให้ครบก่อนยื่น\\n\" +\n    \"- ติดตามสถานะในระบบตามรอบที่กำหนด\\n\\n\" +\n    \"✅ ชั่วโมงจิตอาสา:\\n\" +\n    \"- ตรวจสอบกิจกรรมที่มหาวิทยาลัยรับรอง\\n\" +\n    \"- เก็บหลักฐาน/ชั่วโมงให้ครบ และตรวจสอบการบันทึกในระบบ\\n\\n\" +\n    \"ถ้าพิมพ์ว่า “กยศ” หรือ “ชั่วโมงจิตอาสา” เค้าจะตอบละเอียดให้ตรงเรื่องค่ะ 🤍\"\n};\n\nreturn [{\n  json: { replyToken, message }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        512,
+        -32
+      ],
+      "id": "0431d0ba-eb57-46f5-8172-4d4bd39f2315",
+      "name": "Code-Message (กยศ / ชั่วโมงจิตอาสา)"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "to": "={{ $('Normalize Text1').item.json.messageType }}",
+        "messages": {
+          "values": [
+            {
+              "quoteToken": "={{ $('Normalize Text1').item.json.replyToken }}",
+              "text": "สวัสดีค่ะ เค้าคือ Smart Chatbot for MSU Student Advisory System   ผู้ช่วยให้ข้อมูลและอยู่ข้างตัวเองเสมอค่ะ เค้าช่วยเรื่องนี้ได้ค่ะ  "
+            }
+          ]
+        }
+      },
+      "type": "@aotoki/n8n-nodes-line-messaging.lineMessaging",
+      "typeVersion": 1,
+      "position": [
+        736,
+        -400
+      ],
+      "id": "1ac7e58f-2802-4f31-a15a-d8fb31f58ba8",
+      "name": "Send Message (พ้นสภาพนิสิต)",
+      "credentials": {
+        "lineMessagingApi": {
+          "id": "Rdwu11SMR5rGIZQv",
+          "name": "Line Messaging account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "to": "={{ $('Normalize Text1').item.json.userId }}"
+      },
+      "type": "@aotoki/n8n-nodes-line-messaging.lineMessaging",
+      "typeVersion": 1,
+      "position": [
+        736,
+        -208
+      ],
+      "id": "5922cf90-9e81-49f9-b82d-2e2d8afe67fe",
+      "name": "Send Message (ลงทะเบียนเรียน / Gen Ed)",
+      "credentials": {
+        "lineMessagingApi": {
+          "id": "EmKnphtADBRWpShG",
+          "name": "Line Messaging account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "to": "={{ $('Normalize Text1').item.json.userId }}"
+      },
+      "type": "@aotoki/n8n-nodes-line-messaging.lineMessaging",
+      "typeVersion": 1,
+      "position": [
+        736,
+        -16
+      ],
+      "id": "9973bc5a-69e6-475a-9d24-491f618dccf1",
+      "name": "Send Message (กยศ / ชั่วโมงจิตอาสา)",
+      "credentials": {
+        "lineMessagingApi": {
+          "id": "EmKnphtADBRWpShG",
+          "name": "Line Messaging account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1sqaSIJ-j1FZ0N_xKgD5DAWQbMZ82WI-t3Su6_2GuZWI",
+          "mode": "list",
+          "cachedResultName": "Smart chatbot mind",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1sqaSIJ-j1FZ0N_xKgD5DAWQbMZ82WI-t3Su6_2GuZWI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1sqaSIJ-j1FZ0N_xKgD5DAWQbMZ82WI-t3Su6_2GuZWI/edit#gid=0"
+        },
+        "combineFilters": "OR",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        96,
+        80
+      ],
+      "id": "cdc6bd93-1010-4a81-8a33-b455fe45f6c0",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "bjeP8LbO5z6bSAkX",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8b96cb3c-a5e7-4074-b2fe-61293dfea2bc",
+              "leftValue": "",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        304,
+        256
+      ],
+      "id": "f794e264-e6b3-49bd-9ea5-13ac61fc6386",
+      "name": "IF: Menu Already Shown?"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "to": "="
+      },
+      "type": "@aotoki/n8n-nodes-line-messaging.lineMessaging",
+      "typeVersion": 1,
+      "position": [
+        752,
+        368
+      ],
+      "id": "829aeeb7-6453-48fa-aa46-69731249a4ea",
+      "name": "Send Initial Menu",
+      "credentials": {
+        "lineMessagingApi": {
+          "id": "EmKnphtADBRWpShG",
+          "name": "Line Messaging account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1sqaSIJ-j1FZ0N_xKgD5DAWQbMZ82WI-t3Su6_2GuZWI",
+          "mode": "list",
+          "cachedResultName": "Smart chatbot mind",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1sqaSIJ-j1FZ0N_xKgD5DAWQbMZ82WI-t3Su6_2GuZWI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1sqaSIJ-j1FZ0N_xKgD5DAWQbMZ82WI-t3Su6_2GuZWI/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "enabled",
+              "displayName": "enabled",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "priority",
+              "displayName": "priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "match_type",
+              "displayName": "match_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "keyword",
+              "displayName": "keyword",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "aliases",
+              "displayName": "aliases",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "intent",
+              "displayName": "intent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "answer",
+              "displayName": "answer",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "append_footer",
+              "displayName": "append_footer",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        976,
+        336
+      ],
+      "id": "cd579b4c-95a4-4bd1-afac-0d80898511f0",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "bjeP8LbO5z6bSAkX",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * Build Initial Menu (Code node)\n * - ใช้ ReplyToken (reply) เท่านั้น\n * - ไม่ใช้ 1️⃣2️⃣3️⃣ เพื่อเลี่ยง LINE เพี้ยนเป็น 📄\n * - ส่ง message เป็น object แบบเดียวกับ Help message (ที่คุณใช้แล้วเวิร์ก)\n */\n\nconst replyToken = $node[\"Normalize Text1\"].json.replyToken;\nconst userId = $node[\"Normalize Text1\"].json.userId;\n\nconst message = {\n  type: \"text\",\n  text:\n    \"สวัสดีค่ะ 💚\\n\" +\n    \"เค้าเป็น Smart Chatbot – MSU Student Friend Advisor 👩‍🎓✨\\n\\n\" +\n    \"พิมพ์เลขหรือพิมพ์คำถามได้เลยนะคะ 🤍\\n\\n\" +\n    \"1) พ้นสภาพนิสิต\\n\" +\n    \"2) ลงทะเบียนเรียน / Gen Ed\\n\" +\n    \"3) กยศ / ชั่วโมงจิตอาสา\"\n};\n\nreturn [{\n  json: {\n    replyToken,\n    userId,\n    message,\n\n    // เผื่อเอาไปใช้ Mark session ว่าแสดงเมนูแล้ว\n    menu_shown: true,\n    updated_at: new Date().toISOString(),\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        320
+      ],
+      "id": "89b70c3b-2e8a-46b1-805a-bab258743b75",
+      "name": "Build Initial Menu"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.userId }}",
+        "options": {
+          "systemMessage": "=คุณคือ Smart Chatbot – MSU Student Friend Advisor\nผู้ช่วยให้ข้อมูลการศึกษา ช่วยแก้ปัญหา แนะนำขั้นตอน และเป็นเพื่อนที่ให้กำลังใจผู้ใช้เสมอ\n\nGLOBAL CONSTRAINT:\n- ต้องตอบเป็นภาษาไทยเท่านั้น\n- มีอิโมจิน่ารักๆทุกครั้ง\n- ใช้ภาษาไทยสุภาพ อบอุ่น จริงใจ\n- ใช้คำลงท้าย “ค่ะ” เท่านั้น\n- ตอบไม่เกิน 50 คำ\n- อธิบายเป็นขั้นตอน 1 → 2 → 3\n- ห้ามแสดงเมนูซ้ำ\n- ทุกคำตอบต้องลงท้ายด้วยประโยคนี้:\n“ยังมีอะไรที่ตัวเองสงสัยอีกมั้ยคะ? บอกเค้าได้เลยน้า😍👩‍🎓”\n\nFOCUS:\n- ต้องตีความเลขเดี่ยว “1” “2” “3” เป็นคำสั่งหลักทันที\n\nINITIAL MENU (แสดงครั้งแรกเท่านั้น):\nสวัสดีค่ะ เค้าคือ Smart Chatbot for MSU Student Advisory System  \nผู้ช่วยให้ข้อมูลและอยู่ข้างตัวเองเสมอค่ะ เค้าช่วยเรื่องนี้ได้ค่ะ  \n\n💔1 พ้นสภาพนิสิต  \n📚2 ลงทะเบียนเรียน / Gen Ed  \n💵3 กยศ / ชั่วโมงจิตอาสา  \n\nพิมพ์เลขได้เลยค่ะ  \nหรือถ้าอยากปรึกษาเรื่องอะไรก็พิมพ์ถามได้เลยนะคะ  \nถ้าเค้าช่วยได้ เค้าจะช่วยเต็มที่เลยค่ะ 🤍\n\nห้ามแสดงเมนูนี้ซ้ำอีกไม่ว่ากรณีใด\n\nSUPER RULE — ลงทะเบียนเกิน:\nหากพบคำว่า “ลงเกิน” “ลงเกินสูงสุด” “เพิ่มหน่วยกิต” “ขอลงเกิน” “ยื่นคำร้องลงเกิน”\nต้องตอบว่า:\n“ต้องยื่นคำร้องและได้รับอนุมัติจากคณบดี เพิ่มได้สูงสุด +3 หน่วยกิต ค่ะ”\nห้ามตอบข้อมูลอื่นเด็ดขาด\n\nEMOTION RULE:\nหากพบคำว่า เหนื่อย ท้อ เครียด กังวล ไม่ไหว กลัวรีไทน์ อยากลาออก เศร้า\nต้องตอบขึ้นต้นว่า:\n“ไม่เป็นไรนะ เค้าอยู่ตรงนี้เสมอ เดี๋ยวเราค่อยหาทางแก้ไปด้วยกันค่ะ”\nจากนั้นให้คำแนะนำ 1 ประโยค พร้อมอิโมจิน่ารักๆ\n\nKNOWLEDGE BASE:\n\nกองทะเบียน:\nSC3 ชั้น 1  \nโทร 043-754-333 กด 0, 08-0323-7706  \nอีเมล reg@msu.ac.th  \nเวลา 08.30–20.30 (จ–ศ) / 08.30–16.00 (ส–อา)\n\nเกณฑ์พ้นสภาพนิสิต:\nพ.ศ.2547 → GPAX < 1.60 / 1.75 / 2.00  \nพ.ศ.2557 → GPAX < 1.50 / 1.75  \nลิงก์: https://genedu.msu.ac.th/thai/img/faqs3.png\n\nการเทียบโอนหน่วยกิต:\nhttps://genedu.msu.ac.th/creditbank/m.pdf  \nhttp://geonline.msu.ac.th/mis/dif_university/kk.pdf  \nhttps://bit.ly/การเทียบโอนหน่วยกิต  \nhttps://www.youtube.com/watch?v=ebt5jgnxNwM\n\nหน่วยกิตมาตรฐาน:\nเทอมปกติ 9–22 หน่วยกิต  \nสามารถลงต่ำกว่าได้ในกรณีใกล้จบหรือเป็นปี 4 ที่เก็บตกหน่วยกิต  \nฤดูร้อน ไม่เกิน 6 หน่วยกิต  \nGen Ed ขั้นต่ำ 24 หน่วยกิต\n\nขั้นตอนลงทะเบียน:\n1 ตรวจแผนการเรียน  \n2 ปรึกษาอาจารย์ที่ปรึกษา  \n3 ลงทะเบียน  \n4 ชำระเงิน  \n5 ตรวจผล  \n\nลิงก์สำคัญ:\nhttps://reg.msu.ac.th/registrar/home.asp  \nhttps://bit.ly/ปฏิทินการศึกษาย่อ2568  \nhttps://bit.ly/ปฏิทินการศึกษาปี2568ฉบับเต็ม  \nhttps://bit.ly/ปฏิทินการศึกษาย่อ2569  \nhttps://bit.ly/ปฏิทินการศึกษาปี2569ฉบับเต็ม  \n\nRULE 1 — พ้นสภาพนิสิต:\nต้องตรวจข้อมูล คณะ สาขา ชั้นปี และGPAX   \nหากข้อมูลไม่ครบ ต้องถามย้อน  \nหากครบ ต้องประเมินผล ให้แนวทาง แนะนำติดต่อคณะหรือกองทะเบียน แนบลิงก์ และให้กำลังใจ 1 ประโยค\n\nRULE 2 — ลงทะเบียนเรียน / Gen Ed:\nหากผู้ใช้พิมพ์ “2”\nต้องสรุปหน่วยกิต + ขั้นตอนลงทะเบียน + แนบลิงก์\nหากถามเฉพาะตัวเลข\nให้ตอบตามเกณฑ์หน่วยกิตมาตรฐาน\nลิงก์ขั้นตอนคำร้อง:\nhttps://bit.ly/ขั้นตอนการยื่นคำร้อง  \nhttps://bit.ly/คำร้องขอเรียนเกิน\n\nทุกคำตอบต้องมีประโยค:\n“อย่าลืมชำระเงินตามกำหนดนะคะ”\n\nRULE 3 — กยศ / ชั่วโมงจิตอาสา:\nเมื่อผู้ใช้พิมพ์ “3” ต้องตอบว่า:\n“มีปัญหาเรื่องกยศ.ใช่ไหมคะ บอกเค้าได้เลยว่าต้องการถามเรื่องไหน ถามได้ทุกเรื่องเลยนะคะ”\nลิงก์: https://www.studentloan.or.th/th/highlight/1622797834\n\nOUT OF SCOPE:\nหากผู้ใช้พิมพ์เลขอื่นนอกจาก 1 2 3\nให้ตอบว่า:\n“ฮือออ ขอโทษน้า ตอนนี้เค้าช่วยได้แค่เรื่อง 1 2 3 เท่านั้นเอง ฟังก์ชันอื่น ๆ จะพัฒนามาให้ใช้ในอนาคตแน่นอนค่ะ”แล้วนำข้อมูลคำถามไปเก็บที่Data Table\n {{ $json.message.text }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        1248,
+        -96
+      ],
+      "id": "d06f14e0-474a-4174-94fe-3a5532db5a89",
+      "name": "AI Agent",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1184,
+        96
+      ],
+      "id": "2e447b78-86d0-463e-8cc4-d1ea78e890cb",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "sYBOvosjqVxnK36C",
+          "name": "n8n free OpenAI API credits"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1sqaSIJ-j1FZ0N_xKgD5DAWQbMZ82WI-t3Su6_2GuZWI",
+          "mode": "list",
+          "cachedResultName": "Smart chatbot mind",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1sqaSIJ-j1FZ0N_xKgD5DAWQbMZ82WI-t3Su6_2GuZWI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1sqaSIJ-j1FZ0N_xKgD5DAWQbMZ82WI-t3Su6_2GuZWI/edit#gid=0"
+        },
+        "combineFilters": "OR",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        1424,
+        144
+      ],
+      "id": "148e9a12-b13c-4bc7-9315-7b22f6a15f1b",
+      "name": "Get row(s) in sheet in Google Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "bjeP8LbO5z6bSAkX",
+          "name": "Google Sheets account 2"
+        }
+      },
+      "disabled": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalize Text1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Text1": {
+      "main": [
+        [
+          {
+            "node": "Switch: Menu Choice",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: Menu Choice": {
+      "main": [
+        [
+          {
+            "node": "Code-Message (พ้นสภาพนิสิต)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code-Message (ลงทะเบียนเรียน / Gen Ed))",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code-Message (กยศ / ชั่วโมงจิตอาสา)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code-Message (พ้นสภาพนิสิต)": {
+      "main": [
+        [
+          {
+            "node": "Send Message (พ้นสภาพนิสิต)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code-Message (ลงทะเบียนเรียน / Gen Ed))": {
+      "main": [
+        [
+          {
+            "node": "Send Message (ลงทะเบียนเรียน / Gen Ed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code-Message (กยศ / ชั่วโมงจิตอาสา)": {
+      "main": [
+        [
+          {
+            "node": "Send Message (กยศ / ชั่วโมงจิตอาสา)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Message (พ้นสภาพนิสิต)": {
+      "main": [
+        []
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "IF: Menu Already Shown?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Menu Already Shown?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Build Initial Menu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Initial Menu": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Initial Menu": {
+      "main": [
+        [
+          {
+            "node": "Send Initial Menu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        []
+      ]
+    },
+    "Get row(s) in sheet in Google Sheets": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e3eb6466-2328-47b8-9ba6-d019775d1cd7",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "875134003e4661a47c4ec47647009d760b4e86177356e34a63d9432c52b8ef78"
+  },
+  "id": "U2hLuPXPgCuSK0b9",
+  "tags": []
+}
